@@ -1,0 +1,267 @@
+.tl-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: #181818;
+  overflow: hidden;
+}
+
+/* Controls bar */
+.tl-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: #222;
+  border-bottom: 1px solid #2e2e2e;
+  flex-shrink: 0;
+}
+
+.tl-btn {
+  background: #2e2e2e;
+  border: 1px solid #3a3a3a;
+  color: #ccc;
+  padding: 4px 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.12s;
+}
+
+.tl-btn:hover { background: #3a3a3a; }
+
+.tl-btn-export {
+  background: #1e3a1a;
+  border-color: #2e5a28;
+  color: #80d870;
+  font-size: 12px;
+}
+
+.tl-btn-export:hover { background: #254a20; }
+.tl-btn-export:disabled { opacity: 0.5; cursor: default; }
+
+.tl-time {
+  font-size: 12px;
+  color: #888;
+  font-family: monospace;
+}
+
+.tl-spacer { flex: 1; }
+
+/* Scrollable container */
+.tl-scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative;
+  cursor: default;
+}
+
+.tl-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+.tl-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+.tl-inner {
+  position: relative;
+  min-height: 100%;
+}
+
+/* Ruler */
+.tl-ruler {
+  height: 28px;
+  background: #202020;
+  border-bottom: 1px solid #333;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.tl-ruler-tick {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-left: 1px solid #333;
+  padding-left: 3px;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 3px;
+}
+
+.tl-ruler-tick span {
+  font-size: 10px;
+  color: #666;
+  user-select: none;
+  pointer-events: none;
+}
+
+.tl-ruler-measure {
+  border-left-color: #555;
+}
+
+.tl-ruler-measure span {
+  color: #999;
+}
+
+/* Tracks area */
+.tl-tracks {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grid cells — the beat squares */
+.tl-cell {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.tl-cell-even { background: rgba(255,255,255,0.012); }
+.tl-cell-odd  { background: rgba(0,0,0,0.08); }
+.tl-cell-bar  { border-left: 1px solid rgba(255,255,255,0.08); }
+
+/* Track row backgrounds */
+.tl-track-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-bottom: 1px solid #222;
+}
+
+.tl-track-row:nth-child(odd) { background: rgba(255,255,255,0.01); }
+
+/* Strong bar lines (every 4 beats) */
+.tl-bar-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.1);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Clip block */
+.tl-clip {
+  position: absolute;
+  background: linear-gradient(180deg, #2a5098 0%, #1e3a78 100%);
+  border: 1px solid #4a7ace;
+  border-radius: 3px;
+  cursor: grab;
+  overflow: hidden;
+  user-select: none;
+  z-index: 10;
+  margin-top: 1px;
+  transition: border-color 0.1s;
+}
+
+.tl-clip:active { cursor: grabbing; }
+
+.tl-clip-sel {
+  border-color: #7ab4ff;
+  box-shadow: 0 0 0 1px #5b8dee, inset 0 0 0 1px rgba(91,141,238,0.2);
+}
+
+.tl-clip-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.22;
+  pointer-events: none;
+  user-select: none;
+}
+
+.tl-clip-label {
+  position: absolute;
+  bottom: 3px;
+  left: 10px;
+  right: 18px;
+  font-size: 10px;
+  color: #aaccff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Resize handles */
+.tl-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 20;
+  cursor: ew-resize;
+}
+
+.tl-resize:hover { background: rgba(255,255,255,0.15); }
+
+.tl-resize-l {
+  left: 0;
+  border-right: 2px solid rgba(255,255,255,0.25);
+}
+
+.tl-resize-r {
+  right: 0;
+  border-left: 2px solid rgba(255,255,255,0.25);
+}
+
+/* Delete button */
+.tl-clip-del {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
+  background: rgba(200, 60, 60, 0.85);
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  padding: 0;
+  opacity: 0.8;
+}
+
+.tl-clip-del:hover { opacity: 1; background: #cc3333; }
+
+/* Drop ghost */
+.tl-drop-ghost {
+  position: absolute;
+  width: 3px;
+  background: #5b8dee;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.8;
+}
+
+/* Playback cursor */
+.tl-cursor {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  background: #ff4444;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow: 0 0 6px rgba(255,68,68,0.6);
+}
+
+.tl-cursor::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  width: 10px;
+  height: 8px;
+  background: #ff4444;
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+}

@@ -1,0 +1,137 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 40px;
+  background: #222;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.toolbar-brand {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b8dee;
+  letter-spacing: 0.12em;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.toolbar-project-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  color: #bbb;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: border-color 0.12s, background 0.12s;
+  max-width: 200px;
+}
+
+.toolbar-project-btn:hover {
+  border-color: #5b8dee;
+  background: #2e2e2e;
+  color: #ddd;
+}
+
+.toolbar-project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #a0c4ff;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: #3a3a3a;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.toolbar-label {
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.snap-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  color: #aaa;
+}
+
+.snap-checkbox {
+  accent-color: #5b8dee;
+  width: 13px;
+  height: 13px;
+}
+
+.toolbar-input {
+  background: #2e2e2e;
+  border: 1px solid #3a3a3a;
+  color: #e0e0e0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  outline: none;
+}
+
+.toolbar-input:focus {
+  border-color: #5b8dee;
+}
+
+.bpm-input {
+  width: 62px;
+}
+
+.toolbar-select {
+  background: #2e2e2e;
+  border: 1px solid #3a3a3a;
+  color: #e0e0e0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.toolbar-select:focus {
+  border-color: #5b8dee;
+}
+
+.music-select {
+  width: 180px;
+}
+
+.toolbar-range {
+  width: 80px;
+  accent-color: #5b8dee;
+  cursor: pointer;
+}
+
+.toolbar-value {
+  font-size: 11px;
+  color: #666;
+  min-width: 28px;
+}
