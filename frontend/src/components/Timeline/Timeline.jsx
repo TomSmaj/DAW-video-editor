@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect, useState } from 'react'
+import { useRef, useCallback, useEffect, useState } from 'react'
 import useStore from '../../store/useStore'
 import './Timeline.css'
 
@@ -341,8 +341,114 @@ export default function Timeline() {
               style={{ left: cursorLeft, height: TRACK_HEIGHT * NUM_TRACKS }}
             />
           </div>
+
+          {/* Waveform track */}
+          <WaveformTrack
+            musicFile={selectedMusicFile}
+            timelineWidth={timelineWidth}
+            pixelsPerBeat={pixelsPerBeat}
+            bpm={bpm}
+            cursorLeft={cursorLeft}
+          />
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Waveform track ─────────────────────────────────────────────────────────
+const WAVEFORM_HEIGHT = 56
+
+function WaveformTrack({ musicFile, timelineWidth, pixelsPerBeat, bpm, cursorLeft }) {
+  const canvasRef = useRef(null)
+  const audioBufferRef = useRef(null)
+  const lastMusicFileRef = useRef(null)
+  const [loading, setLoading] = useState(false)
+
+  const draw = useCallback((audioBuffer) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    const width = canvas.width
+    const height = canvas.height
+    ctx.clearRect(0, 0, width, height)
+
+    const channelData = audioBuffer.getChannelData(0)
+    const pxPerSec = pixelsPerBeat * bpm / 60
+    const audioPx = Math.min(width, Math.floor(audioBuffer.duration * pxPerSec))
+    const samplesPerPx = channelData.length / audioPx
+    const mid = height / 2
+    const amp = mid - 2
+
+    // Faint background tint over the audio region
+    ctx.fillStyle = 'rgba(74,144,217,0.07)'
+    ctx.fillRect(0, 0, audioPx, height)
+
+    for (let px = 0; px < audioPx; px++) {
+      const s = Math.floor(px * samplesPerPx)
+      const e = Math.min(channelData.length - 1, Math.floor((px + 1) * samplesPerPx))
+      let mn = 0, mx = 0
+      for (let i = s; i <= e; i++) {
+        const v = channelData[i]
+        if (v > mx) mx = v
+        if (v < mn) mn = v
+      }
+      const yTop = mid - mx * amp
+      const yBot = mid - mn * amp
+      ctx.fillStyle = '#3a7ec0'
+      ctx.fillRect(px, yTop, 1, Math.max(1, yBot - yTop))
+    }
+  }, [pixelsPerBeat, bpm])
+
+  // Redraw when zoom/bpm changes and buffer is already cached
+  useEffect(() => {
+    if (audioBufferRef.current && lastMusicFileRef.current === musicFile) {
+      draw(audioBufferRef.current)
+    }
+  }, [pixelsPerBeat, bpm, timelineWidth, draw])
+
+  // Fetch + decode when music file changes
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    if (!musicFile) {
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      audioBufferRef.current = null
+      lastMusicFileRef.current = null
+      return
+    }
+    if (lastMusicFileRef.current === musicFile && audioBufferRef.current) return
+
+    let cancelled = false
+    setLoading(true)
+    const ac = new (window.AudioContext || window.webkitAudioContext)()
+    fetch(`/music/${encodeURIComponent(musicFile)}`)
+      .then((r) => r.arrayBuffer())
+      .then((buf) => ac.decodeAudioData(buf))
+      .then((audioBuffer) => {
+        if (cancelled) return
+        audioBufferRef.current = audioBuffer
+        lastMusicFileRef.current = musicFile
+        setLoading(false)
+        draw(audioBuffer)
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+      .finally(() => ac.close().catch(() => {}))
+
+    return () => { cancelled = true }
+  }, [musicFile, draw])
+
+  return (
+    <div className="tl-waveform">
+      <canvas
+        ref={canvasRef}
+        className="tl-waveform-canvas"
+        width={timelineWidth}
+        height={WAVEFORM_HEIGHT}
+      />
+      {loading && <span className="tl-waveform-loading">Loading waveform…</span>}
+      <div className="tl-cursor" style={{ left: cursorLeft, height: WAVEFORM_HEIGHT }} />
     </div>
   )
 }

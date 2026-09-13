@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import useStore from '../../store/useStore'
 import ProjectManager from '../ProjectManager/ProjectManager'
 import './Toolbar.css'
@@ -14,6 +14,17 @@ export default function Toolbar() {
   } = useStore()
 
   const [showProjects, setShowProjects] = useState(false)
+  const [bpmDraft, setBpmDraft] = useState(String(bpm))
+
+  // Resync the draft when bpm changes outside this input, e.g. loading a project
+  useEffect(() => { setBpmDraft(String(bpm)) }, [bpm])
+
+  const commitBpm = (raw) => {
+    const n = parseFloat(raw)
+    const clamped = !isNaN(n) ? Math.min(300, Math.max(20, n)) : bpm
+    setBpm(clamped)
+    setBpmDraft(String(clamped))
+  }
 
   return (
     <>
@@ -41,10 +52,16 @@ export default function Toolbar() {
         <div className="toolbar-group">
           <label className="toolbar-label">BPM</label>
           <input
-            type="number"
-            value={bpm}
-            min={20} max={300}
-            onChange={(e) => setBpm(Number(e.target.value))}
+            type="text"
+            inputMode="decimal"
+            value={bpmDraft}
+            onChange={(e) => setBpmDraft(e.target.value)}
+            onBlur={(e) => commitBpm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.target.blur() }
+              if (e.key === 'Escape') { setBpmDraft(String(bpm)); e.target.blur() }
+            }}
+            onFocus={(e) => e.target.select()}
             className="toolbar-input bpm-input"
           />
         </div>

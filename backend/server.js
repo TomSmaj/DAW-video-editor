@@ -137,7 +137,8 @@ app.post('/api/projects', (req, res) => {
   try {
     const { name, state } = req.body;
     if (!name || !state) return res.status(400).json({ error: 'name and state required' });
-    const id = uuidv4();
+    const slug = name.trim().replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').slice(0, 100);
+    const id = slug || uuidv4();
     const project = { id, name, savedAt: new Date().toISOString(), state };
     fs.writeFileSync(path.join(PROJECTS_DIR, `${id}.json`), JSON.stringify(project, null, 2));
     res.json({ id, name, savedAt: project.savedAt });

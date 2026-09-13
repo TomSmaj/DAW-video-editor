@@ -255,6 +255,32 @@
   box-shadow: 0 0 6px rgba(255,68,68,0.6);
 }
 
+/* Waveform track */
+.tl-waveform {
+  position: relative;
+  height: 56px;
+  border-top: 1px solid #2a2a2a;
+  background: #111;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.tl-waveform-canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.tl-waveform-loading {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: #555;
+  pointer-events: none;
+  user-select: none;
+}
+
 .tl-cursor::before {
   content: '';
   position: absolute;

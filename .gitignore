@@ -2,3 +2,4 @@ node_modules/
 media/thumbnails/
 media/exports/
 .env
+.env.example
