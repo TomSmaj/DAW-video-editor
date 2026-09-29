@@ -10,7 +10,7 @@ export default function Toolbar() {
     snapToGrid, setSnapToGrid,
     zoom, setZoom,
     musicFiles, selectedMusicFile, setSelectedMusicFile,
-    currentProjectName,
+    currentProjectName, pushHistory,
   } = useStore()
 
   const [showProjects, setShowProjects] = useState(false)
@@ -22,6 +22,8 @@ export default function Toolbar() {
   const commitBpm = (raw) => {
     const n = parseFloat(raw)
     const clamped = !isNaN(n) ? Math.min(300, Math.max(20, n)) : bpm
+    // Blurring without a real change shouldn't consume an undo step
+    if (clamped !== bpm) pushHistory()
     setBpm(clamped)
     setBpmDraft(String(clamped))
   }

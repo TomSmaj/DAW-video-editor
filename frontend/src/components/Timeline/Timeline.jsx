@@ -14,6 +14,7 @@ export default function Timeline() {
     addTimelineClip, updateTimelineClip, removeTimelineClip,
     selectClip, selectedClipIds, setSelectedClipIds,
     timelineBeats, setTimelineBeats,
+    pushHistory, undo, redo, history, future,
     bpm, beatDivision, snapToGrid, pixelsPerBeat,
     getGridUnitBeats, snapBeat,
     currentTime, isPlaying, setIsPlaying, setCurrentTime,
@@ -26,6 +27,7 @@ export default function Timeline() {
   const playStartWall = useRef(0)
   const playStartTime = useRef(0)
   const audioRef = useRef(null)
+  const prevPixelsPerBeat = useRef(pixelsPerBeat)
 
   // Grow the timeline to fit all clips, rounded up to the next bar (4 beats)
   const lastClipEnd = timelineClips.reduce(
@@ -77,6 +79,7 @@ export default function Timeline() {
     if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
+    pushHistory()
     setResizingEnd(true)
 
     const startX = e.clientX
@@ -162,6 +165,7 @@ export default function Timeline() {
     if (!lib) return
     const pos = clientToTimeline(e.clientX, e.clientY)
     const startBeat = Math.max(0, snapBeat(pos.beat))
+    pushHistory()
     addTimelineClip(lib, startBeat, pos.track)
     setDropPos(null)
   }
@@ -173,6 +177,9 @@ export default function Timeline() {
   const handleClipMouseDown = useCallback((e, clip, mode) => {
     e.preventDefault()
     e.stopPropagation()
+
+    // One snapshot per drag, taken before anything moves
+    pushHistory()
 
     const st = useStore.getState()
     // Dragging a member of a multi-selection moves the whole group, so don't
@@ -267,7 +274,12 @@ export default function Timeline() {
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [pixelsPerBeat, selectClip, updateTimelineClip])
+  }, [pixelsPerBeat, selectClip, updateTimelineClip, pushHistory])
+
+  const handleDeleteClip = (id) => {
+    pushHistory()
+    removeTimelineClip(id)
+  }
 
   // ── Click on empty track — set cursor / deselect ──────────────────────────
   const handleTrackAreaClick = (e) => {
@@ -338,6 +350,22 @@ export default function Timeline() {
 
   useEffect(() => () => cancelAnimationFrame(animRef.current), [])
 
+  // Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z or Ctrl+Y redo, unless focus is in a form field
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const k = e.key.toLowerCase()
+      if (k !== 'z' && k !== 'y') return
+      const t = e.target
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+      e.preventDefault()
+      if (k === 'y' || e.shiftKey) redo()
+      else undo()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [undo, redo])
+
   // Update audio src when music file changes
   useEffect(() => {
     if (!audioRef.current) return
@@ -347,6 +375,24 @@ export default function Timeline() {
       audioRef.current.src = ''
     }
   }, [selectedMusicFile])
+
+  // Keep the playhead anchored when zooming, instead of drifting to beat 0.
+  // Runs before the DOM scroll position is touched, so scrollLeft is still the
+  // pre-zoom value and can be used to recover the cursor's screen position.
+  useEffect(() => {
+    const el = scrollRef.current
+    const prev = prevPixelsPerBeat.current
+    prevPixelsPerBeat.current = pixelsPerBeat
+    if (!el || prev === pixelsPerBeat) return
+
+    const beat = currentTime * (bpm / 60)
+    let screenX = beat * prev - el.scrollLeft
+    // If the playhead wasn't on screen, bring it to the middle rather than
+    // preserving a meaningless off-screen offset
+    if (screenX < 0 || screenX > el.clientWidth) screenX = el.clientWidth / 2
+
+    el.scrollLeft = Math.max(0, beat * pixelsPerBeat - screenX)
+  }, [pixelsPerBeat, currentTime, bpm])
 
   // Auto-scroll cursor into view
   useEffect(() => {
@@ -437,6 +483,20 @@ export default function Timeline() {
           {isPlaying ? '⏸' : '▶'}
         </button>
         <button className="tl-btn" onClick={() => stopPlayback(true)} title="Stop">⏹</button>
+
+        <button
+          className="tl-btn"
+          onClick={undo}
+          disabled={history.length === 0}
+          title="Undo (Cmd/Ctrl+Z)"
+        >↶</button>
+
+        <button
+          className="tl-btn"
+          onClick={redo}
+          disabled={future.length === 0}
+          title="Redo (Shift+Cmd/Ctrl+Z)"
+        >↷</button>
 
         <span className="tl-time">
           {formatTime(currentTime)} &nbsp;|&nbsp; Beat {currentBeat.toFixed(2)}
@@ -532,7 +592,7 @@ export default function Timeline() {
                 isSelected={selectedClipIds.includes(clip.id)}
                 isBlocked={moveBlocked && selectedClipIds.includes(clip.id)}
                 onMouseDown={handleClipMouseDown}
-                onDelete={removeTimelineClip}
+                onDelete={handleDeleteClip}
               />
             ))}
 
@@ -693,6 +753,7 @@ function WaveformTrack({
     if (!buffer) return
     e.preventDefault()
     e.stopPropagation()
+    useStore.getState().pushHistory()
     setDragging(true)
 
     const startX = e.clientX

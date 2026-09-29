@@ -109,6 +109,63 @@ const useStore = create((set, get) => ({
 
   setTimelineBeats: (beats) => set({ timelineBeats: beats }),
 
+  // ── Undo history ──────────────────────────────────────────────────────────
+  // Snapshots of the document-ish state. View settings (zoom, grid division,
+  // snap) and transport state are deliberately excluded — reverting those with
+  // Ctrl+Z would be surprising.
+  history: [],
+  future: [],
+
+  getUndoSnapshot: () => {
+    const s = get()
+    // Clip objects are replaced rather than mutated on edit, so holding the
+    // array reference is enough; no deep clone needed.
+    return {
+      timelineClips: s.timelineClips,
+      musicOffsetBeats: s.musicOffsetBeats,
+      timelineBeats: s.timelineBeats,
+      selectedMusicFile: s.selectedMusicFile,
+      bpm: s.bpm,
+    }
+  },
+
+  // Call once at the START of a discrete action, before mutating. Doing it at
+  // interaction boundaries is what keeps a whole drag to a single undo step.
+  pushHistory: () => {
+    const snap = get().getUndoSnapshot()
+    // A fresh edit invalidates whatever redo path existed
+    set((state) => ({ history: [...state.history.slice(-49), snap], future: [] }))
+  },
+
+  undo: () => {
+    const { history, future, selectedClipIds, getUndoSnapshot } = get()
+    if (history.length === 0) return
+    const prev = history[history.length - 1]
+    const current = getUndoSnapshot()
+    const liveIds = new Set(prev.timelineClips.map((c) => c.id))
+    set({
+      ...prev,
+      history: history.slice(0, -1),
+      future: [...future.slice(-49), current],
+      // Drop anything from the selection that the restored state no longer has
+      selectedClipIds: selectedClipIds.filter((id) => liveIds.has(id)),
+    })
+  },
+
+  redo: () => {
+    const { history, future, selectedClipIds, getUndoSnapshot } = get()
+    if (future.length === 0) return
+    const next = future[future.length - 1]
+    const current = getUndoSnapshot()
+    const liveIds = new Set(next.timelineClips.map((c) => c.id))
+    set({
+      ...next,
+      future: future.slice(0, -1),
+      history: [...history.slice(-49), current],
+      selectedClipIds: selectedClipIds.filter((id) => liveIds.has(id)),
+    })
+  },
+
   // Playback
   setIsPlaying: (v) => set({ isPlaying: v }),
   setCurrentTime: (t) => set({ currentTime: t }),
@@ -145,6 +202,9 @@ const useStore = create((set, get) => ({
       selectedMusicFile: state.selectedMusicFile ?? null,
       musicOffsetBeats: state.musicOffsetBeats ?? 0,
       timelineBeats: state.timelineBeats ?? null,
+      // Loading a project is a fresh document, not an undoable edit
+      history: [],
+      future: [],
       timelineClips: state.timelineClips ?? [],
       selectedClipIds: [],
       currentTime: 0,

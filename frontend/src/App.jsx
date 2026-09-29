@@ -51,7 +51,12 @@ export default function App() {
   return (
     <div className="app" ref={containerRef}>
       <Toolbar />
-      <div className="main-panel" style={topHeight != null ? { height: topHeight } : {}}>
+      {/* flex-basis, not height: the panel's `flex: 1` sets flex-basis to 0%,
+          which wins over height on the main axis and would ignore the drag */}
+      <div
+        className="main-panel"
+        style={topHeight != null ? { flex: `0 1 ${topHeight}px` } : {}}
+      >
         <ClipLibrary />
         <ClipPreview />
         <VideoPreview />
