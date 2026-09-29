@@ -408,6 +408,7 @@ export default function Timeline() {
   const [exporting, setExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportEta, setExportEta] = useState(null)
+  const [exportQuality, setExportQuality] = useState('standard')
 
   const handleExport = async () => {
     const state = useStore.getState()
@@ -424,6 +425,7 @@ export default function Timeline() {
           musicFile: state.selectedMusicFile,
           musicOffsetBeats: state.musicOffsetBeats,
           bpm: state.bpm,
+          quality: exportQuality,
         }),
       })
       const started = await res.json()
@@ -515,6 +517,20 @@ export default function Timeline() {
             {exportEta === null ? 'estimating…' : `~${formatEta(exportEta)} left`}
           </span>
         )}
+
+        <select
+          className="tl-quality-select"
+          value={exportQuality}
+          onChange={(e) => setExportQuality(e.target.value)}
+          disabled={exporting}
+          title="Render quality"
+        >
+          <option value="draft">Draft (480p, fastest)</option>
+          <option value="low">Low (720p)</option>
+          <option value="standard">Standard</option>
+          <option value="high">High</option>
+          <option value="max">Maximum (slowest)</option>
+        </select>
 
         <button
           className="tl-btn tl-btn-export"

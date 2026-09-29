@@ -226,19 +226,33 @@ async function runFfmpeg(args) {
   }
 }
 
-const COMMON_OUT = [
-  '-c:v', 'libx264',
-  '-c:a', 'aac',
-  '-r', String(TARGET_FPS),
-  '-ar', String(TARGET_RATE),
-  '-ac', '2',
-  '-pix_fmt', 'yuv420p',
-  '-preset', 'fast',
-  '-crf', '23',
-];
+// Export quality presets. maxHeight caps the output resolution (null = keep the
+// source's); lower crf / slower preset trade render time for fidelity.
+const QUALITY_PRESETS = {
+  draft:    { maxHeight: 480,  crf: 30, preset: 'ultrafast', audioBitrate: '96k' },
+  low:      { maxHeight: 720,  crf: 26, preset: 'veryfast',  audioBitrate: '128k' },
+  standard: { maxHeight: null, crf: 23, preset: 'fast',      audioBitrate: '192k' },
+  high:     { maxHeight: null, crf: 18, preset: 'slow',      audioBitrate: '256k' },
+  max:      { maxHeight: null, crf: 14, preset: 'slower',    audioBitrate: '320k' },
+};
+const DEFAULT_QUALITY = 'standard';
+
+function commonOut(q) {
+  return [
+    '-c:v', 'libx264',
+    '-c:a', 'aac',
+    '-b:a', q.audioBitrate,
+    '-r', String(TARGET_FPS),
+    '-ar', String(TARGET_RATE),
+    '-ac', '2',
+    '-pix_fmt', 'yuv420p',
+    '-preset', q.preset,
+    '-crf', String(q.crf),
+  ];
+}
 
 // Every segment must share codec params so the concat demuxer can stream-copy them
-function renderClipSegment(clipPath, segPath, startTime, duration, w, h, withAudio) {
+function renderClipSegment(clipPath, segPath, startTime, duration, w, h, withAudio, q) {
   const filters = [
     `scale=${w}:${h}:force_original_aspect_ratio=decrease`,
     `pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`,
@@ -253,18 +267,18 @@ function renderClipSegment(clipPath, segPath, startTime, duration, w, h, withAud
     '-t', String(duration),
     '-vf', filters,
     ...(withAudio ? [] : ['-map', '0:v:0', '-map', '1:a:0']),
-    ...COMMON_OUT,
+    ...commonOut(q),
     segPath,
   ]);
 }
 
 // Black + silence filler so timeline gaps survive into the export
-function renderGapSegment(segPath, duration, w, h) {
+function renderGapSegment(segPath, duration, w, h, q) {
   return runFfmpeg([
     '-f', 'lavfi', '-i', `color=c=black:s=${w}x${h}:r=${TARGET_FPS}`,
     '-f', 'lavfi', '-i', `anullsrc=r=${TARGET_RATE}:cl=stereo`,
     '-t', String(duration),
-    ...COMMON_OUT,
+    ...commonOut(q),
     segPath,
   ]);
 }
@@ -279,7 +293,7 @@ function setProgress(jobId, pct) {
 }
 
 app.post('/api/export', (req, res) => {
-  const { clips, musicFile, musicOffsetBeats, bpm } = req.body;
+  const { clips, musicFile, musicOffsetBeats, bpm, quality = DEFAULT_QUALITY } = req.body;
 
   if (!clips || clips.length === 0) {
     return res.status(400).json({ error: 'No clips provided' });
@@ -287,12 +301,15 @@ app.post('/api/export', (req, res) => {
   if (!bpm || bpm <= 0) {
     return res.status(400).json({ error: 'Invalid BPM' });
   }
+  if (!Object.hasOwn(QUALITY_PRESETS, quality)) {
+    return res.status(400).json({ error: `Unknown quality: ${quality}` });
+  }
 
   const jobId = uuidv4();
   exportJobs.set(jobId, { status: 'running', progress: 0, url: null, error: null, startedAt: Date.now() });
   res.json({ jobId });
 
-  runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm }).catch((err) => {
+  runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quality }).catch((err) => {
     const job = exportJobs.get(jobId);
     if (job) {
       job.status = 'error';
@@ -316,7 +333,8 @@ app.get('/api/export/:jobId', (req, res) => {
   res.json({ ...job, etaSeconds });
 });
 
-async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm }) {
+async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quality }) {
+  const q = QUALITY_PRESETS[quality];
   const exportId = uuidv4();
   const tempDir = path.join(EXPORTS_DIR, exportId + '_tmp');
   const outputPath = path.join(EXPORTS_DIR, `${exportId}.mp4`);
@@ -345,6 +363,13 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm }) {
       }
     } catch (e) { /* keep 1080p default */ }
 
+    // Downscale to the preset's cap, preserving aspect ratio; x264 needs even dims
+    if (q.maxHeight && targetH > q.maxHeight) {
+      targetW = Math.round((targetW * q.maxHeight) / targetH);
+      targetW -= targetW % 2;
+      targetH = q.maxHeight;
+    }
+
     // Plan the whole timeline first so total output duration is known up front,
     // which is what makes segment progress a real fraction rather than a guess
     const plan = [];
@@ -369,7 +394,7 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm }) {
       const segPath = path.join(tempDir, `seg_${i}${step.kind === 'gap' ? '_gap' : ''}.mp4`);
 
       if (step.kind === 'gap') {
-        await renderGapSegment(segPath, step.seconds, targetW, targetH);
+        await renderGapSegment(segPath, step.seconds, targetW, targetH, q);
       } else {
         const clipPath = path.join(CLIPS_DIR, step.clip.filename);
         let withAudio = true;
@@ -378,7 +403,7 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm }) {
         } catch (e) { withAudio = true; }
         await renderClipSegment(
           clipPath, segPath, step.clip.trimStart || 0,
-          step.seconds, targetW, targetH, withAudio
+          step.seconds, targetW, targetH, withAudio, q
         );
       }
 
@@ -427,8 +452,9 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm }) {
           .outputOptions([
             ...maps,
             '-shortest',
-            '-preset fast',
-            '-crf 23',
+            `-preset ${q.preset}`,
+            `-crf ${q.crf}`,
+            `-b:a ${q.audioBitrate}`,
             '-movflags +faststart',
           ])
           .videoCodec('libx264')
