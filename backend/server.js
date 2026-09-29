@@ -7,10 +7,39 @@ const { v4: uuidv4 } = require('uuid');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const execFileAsync = promisify(execFile);
+const log = require('./logger');
 
 const app = express();
 app.use(cors());
+
+// Request logging. Media streaming and the export progress poll are high-volume,
+// so successful hits on those only show up at LOG_LEVEL=debug.
+const QUIET_PATHS = /^\/(clips|music|thumbnails|exports)\/|^\/api\/export\/[^/]+$|^\/api\/logs$/;
+app.use((req, res, next) => {
+  const reqId = uuidv4().slice(0, 8);
+  const started = process.hrtime.bigint();
+  req.log = log.child({ reqId });
+  res.setHeader('X-Request-Id', reqId);
+
+  res.on('finish', () => {
+    const ms = Number(process.hrtime.bigint() - started) / 1e6;
+    const ctx = { method: req.method, path: req.originalUrl, status: res.statusCode, ms: Math.round(ms) };
+    if (res.statusCode >= 500) req.log.error('request failed', ctx);
+    else if (res.statusCode >= 400) req.log.warn('request rejected', ctx);
+    // originalUrl, not req.path: routers mounted with app.use('/clips', ...) strip
+    // their prefix from req.path, so it would never match
+    else if (QUIET_PATHS.test(req.originalUrl.split('?')[0])) req.log.debug('request', ctx);
+    else req.log.info('request', ctx);
+  });
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
+
+function sendServerError(req, res, err, msg = 'unhandled route error') {
+  req.log.error(msg, { method: req.method, path: req.originalUrl, err });
+  sendServerError(req, res, err);
+}
 
 const CLIPS_DIR = process.env.CLIPS_DIR || path.join(__dirname, '../media/clips');
 const MUSIC_DIR = process.env.MUSIC_DIR || path.join(__dirname, '../media/music');
@@ -57,6 +86,7 @@ app.get('/api/clips', async (req, res) => {
         VIDEO_EXTS.some(ext => f.endsWith(ext))
       );
     } catch (e) {
+      req.log.warn('cannot read clips directory', { dir: CLIPS_DIR, err: e });
       return res.json([]);
     }
 
@@ -74,10 +104,16 @@ app.get('/api/clips', async (req, res) => {
         duration = meta.format.duration || 0;
         const vs = meta.streams.find(s => s.codec_type === 'video');
         if (vs) { width = vs.width; height = vs.height; }
-      } catch (e) {}
+      } catch (e) {
+        req.log.warn('ffprobe failed for clip', { filename, err: e });
+      }
 
       if (!fs.existsSync(thumbPath)) {
-        try { await generateThumbnail(clipPath, thumbPath); } catch (e) {}
+        try {
+          await generateThumbnail(clipPath, thumbPath);
+        } catch (e) {
+          req.log.warn('thumbnail generation failed', { filename, err: e });
+        }
       }
 
       return {
@@ -91,9 +127,10 @@ app.get('/api/clips', async (req, res) => {
       };
     }));
 
+    req.log.debug('listed clips', { count: clips.length });
     res.json(clips);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -104,7 +141,9 @@ app.get('/api/music', (req, res) => {
       files = fs.readdirSync(MUSIC_DIR).filter(f =>
         AUDIO_EXTS.some(ext => f.endsWith(ext))
       );
-    } catch (e) {}
+    } catch (e) {
+      req.log.warn('cannot read music directory', { dir: MUSIC_DIR, err: e });
+    }
 
     const music = files.map(filename => ({
       id: filename.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_'),
@@ -113,7 +152,7 @@ app.get('/api/music', (req, res) => {
     }));
     res.json(music);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -127,12 +166,15 @@ app.get('/api/projects', (req, res) => {
         const raw = fs.readFileSync(path.join(PROJECTS_DIR, f), 'utf8');
         const data = JSON.parse(raw);
         return { id: data.id, name: data.name, savedAt: data.savedAt };
-      } catch { return null; }
+      } catch (e) {
+        req.log.warn('skipping unreadable project file', { file: f, err: e });
+        return null;
+      }
     }).filter(Boolean);
     projects.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
     res.json(projects);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -144,9 +186,10 @@ app.post('/api/projects', (req, res) => {
     const id = slug || uuidv4();
     const project = { id, name, savedAt: new Date().toISOString(), state };
     fs.writeFileSync(path.join(PROJECTS_DIR, `${id}.json`), JSON.stringify(project, null, 2));
+    req.log.info('project saved', { id, name, clips: state.timelineClips?.length });
     res.json({ id, name, savedAt: project.savedAt });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -157,7 +200,7 @@ app.get('/api/projects/:id', (req, res) => {
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
     res.json(JSON.parse(fs.readFileSync(filePath, 'utf8')));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -170,9 +213,10 @@ app.put('/api/projects/:id', (req, res) => {
     const { name, state } = req.body;
     const updated = { ...existing, name: name ?? existing.name, state: state ?? existing.state, savedAt: new Date().toISOString() };
     fs.writeFileSync(filePath, JSON.stringify(updated, null, 2));
+    req.log.info('project updated', { id: updated.id, name: updated.name, clips: updated.state?.timelineClips?.length });
     res.json({ id: updated.id, name: updated.name, savedAt: updated.savedAt });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -182,9 +226,10 @@ app.delete('/api/projects/:id', (req, res) => {
     if (!filePath.startsWith(PROJECTS_DIR)) return res.status(403).end();
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
     fs.unlinkSync(filePath);
+    req.log.info('project deleted', { id: req.params.id });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendServerError(req, res, err);
   }
 });
 
@@ -221,8 +266,12 @@ async function runFfmpeg(args) {
       maxBuffer: 1024 * 1024 * 32,
     });
   } catch (err) {
-    const detail = (err.stderr || err.message || '').toString().trim().split('\n').slice(-4).join(' ');
-    throw new Error(`ffmpeg failed: ${detail}`);
+    const stderr = (err.stderr || err.message || '').toString().trim();
+    const detail = stderr.split('\n').slice(-4).join(' ');
+    const wrapped = new Error(`ffmpeg failed: ${detail}`);
+    wrapped.ffmpegArgs = args.join(' ');
+    wrapped.ffmpegStderr = stderr.split('\n').slice(-30).join('\n');
+    throw wrapped;
   }
 }
 
@@ -309,8 +358,21 @@ app.post('/api/export', (req, res) => {
   exportJobs.set(jobId, { status: 'running', progress: 0, url: null, error: null, startedAt: Date.now() });
   res.json({ jobId });
 
-  runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quality }).catch((err) => {
+  const jobLog = req.log.child({ jobId });
+  jobLog.info('export started', {
+    clips: clips.length, musicFile: musicFile || null, musicOffsetBeats, bpm, quality,
+  });
+
+  runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quality }, jobLog).catch((err) => {
     const job = exportJobs.get(jobId);
+    jobLog.error('export failed', {
+      elapsedSec: job ? Math.round((Date.now() - job.startedAt) / 1000) : undefined,
+      err,
+      // Full timeline so the failure can be reproduced
+      clips: clips.map((c) => ({
+        filename: c.filename, startBeat: c.startBeat, durationBeats: c.durationBeats, trimStart: c.trimStart,
+      })),
+    });
     if (job) {
       job.status = 'error';
       job.error = err.message;
@@ -333,7 +395,7 @@ app.get('/api/export/:jobId', (req, res) => {
   res.json({ ...job, etaSeconds });
 });
 
-async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quality }) {
+async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quality }, jobLog) {
   const q = QUALITY_PRESETS[quality];
   const exportId = uuidv4();
   const tempDir = path.join(EXPORTS_DIR, exportId + '_tmp');
@@ -361,7 +423,9 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
         targetW = vs.width - (vs.width % 2);
         targetH = vs.height - (vs.height % 2);
       }
-    } catch (e) { /* keep 1080p default */ }
+    } catch (e) {
+      jobLog.warn('could not probe first clip for dimensions, using 1080p', { filename: sortedClips[0].filename, err: e });
+    }
 
     // Downscale to the preset's cap, preserving aspect ratio; x264 needs even dims
     if (q.maxHeight && targetH > q.maxHeight) {
@@ -385,6 +449,12 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
     }
 
     const totalSeconds = plan.reduce((sum, step) => sum + step.seconds, 0) || 1;
+    jobLog.info('export planned', {
+      segments: plan.length,
+      gaps: plan.filter((s) => s.kind === 'gap').length,
+      totalSeconds: +totalSeconds.toFixed(2),
+      width: targetW, height: targetH, preset: q,
+    });
 
     const segmentPaths = [];
     let doneSeconds = 0;
@@ -392,6 +462,7 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
     for (let i = 0; i < plan.length; i++) {
       const step = plan[i];
       const segPath = path.join(tempDir, `seg_${i}${step.kind === 'gap' ? '_gap' : ''}.mp4`);
+      const segStarted = Date.now();
 
       if (step.kind === 'gap') {
         await renderGapSegment(segPath, step.seconds, targetW, targetH, q);
@@ -400,12 +471,24 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
         let withAudio = true;
         try {
           withAudio = hasAudioStream(await getVideoMetadata(clipPath));
-        } catch (e) { withAudio = true; }
-        await renderClipSegment(
-          clipPath, segPath, step.clip.trimStart || 0,
-          step.seconds, targetW, targetH, withAudio, q
-        );
+        } catch (e) {
+          jobLog.warn('ffprobe failed, assuming clip has audio', { filename: step.clip.filename, err: e });
+          withAudio = true;
+        }
+        try {
+          await renderClipSegment(
+            clipPath, segPath, step.clip.trimStart || 0,
+            step.seconds, targetW, targetH, withAudio, q
+          );
+        } catch (err) {
+          err.segment = { index: i, filename: step.clip.filename, trimStart: step.clip.trimStart || 0, seconds: step.seconds, withAudio };
+          throw err;
+        }
       }
+      jobLog.debug('segment rendered', {
+        index: i, kind: step.kind, filename: step.clip?.filename,
+        seconds: +step.seconds.toFixed(3), renderMs: Date.now() - segStarted,
+      });
 
       segmentPaths.push(segPath);
       doneSeconds += step.seconds;
@@ -424,16 +507,22 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
         .output(concatPath)
         .videoCodec('copy')
         .audioCodec('copy')
+        .on('start', (cmdline) => jobLog.debug('concat started', { cmdline }))
         .on('end', resolve)
-        .on('error', reject)
+        .on('error', (err, stdout, stderr) => {
+          err.ffmpegStderr = tail(stderr);
+          reject(err);
+        })
         .run();
     });
+    jobLog.debug('concat done');
     setProgress(jobId, SEG_WEIGHT + CONCAT_WEIGHT);
 
     // Mix with music track
     if (musicFile) {
       const musicPath = path.join(MUSIC_DIR, musicFile);
       const offsetSec = beatsToSeconds(musicOffsetBeats || 0);
+      if (!fs.existsSync(musicPath)) jobLog.warn('music file missing', { musicPath });
       await new Promise((resolve, reject) => {
         const cmd = ffmpeg().input(concatPath).input(musicPath);
         const maps = ['-map 0:v:0'];
@@ -460,13 +549,17 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
           .videoCodec('libx264')
           .audioCodec('aac')
           .output(outputPath)
+          .on('start', (cmdline) => jobLog.debug('music mix started', { cmdline, offsetSec }))
           .on('progress', (p) => {
             if (typeof p.percent === 'number' && isFinite(p.percent)) {
               setProgress(jobId, SEG_WEIGHT + CONCAT_WEIGHT + (p.percent / 100) * MIX_WEIGHT);
             }
           })
           .on('end', resolve)
-          .on('error', reject)
+          .on('error', (err, stdout, stderr) => {
+            err.ffmpegStderr = tail(stderr);
+            reject(err);
+          })
           .run();
       });
     } else {
@@ -480,6 +573,11 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
       job.status = 'done';
       job.progress = 100;
       job.url = `/exports/${exportId}.mp4`;
+      let sizeMB;
+      try { sizeMB = +(fs.statSync(outputPath).size / 1048576).toFixed(1); } catch { /* size is informational */ }
+      jobLog.info('export finished', {
+        elapsedSec: Math.round((Date.now() - job.startedAt) / 1000), output: job.url, sizeMB,
+      });
     }
   } catch (err) {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -490,11 +588,116 @@ async function runExport(jobId, { clips, musicFile, musicOffsetBeats, bpm, quali
   }
 }
 
+// ── Log viewer ────────────────────────────────────────────────────────────────
+
+// One-line human summary of an entry's most useful context fields
+function summarizeLogEntry(e) {
+  const parts = [];
+  if (e.method) parts.push(`${e.method} ${e.path} → ${e.status}${e.ms != null ? ` (${e.ms}ms)` : ''}`);
+  if (e.filename) parts.push(e.filename);
+  if (e.err && e.err.message) parts.push(e.err.message);
+  if (e.jobId) parts.push(`job ${String(e.jobId).slice(0, 8)}`);
+  return parts.join(' · ');
+}
+
+// Newest first, across the daily files, capped at `limit` entries
+app.get('/api/logs', (req, res) => {
+  const limit = Math.min(20000, Math.max(1, parseInt(req.query.limit, 10) || 5000));
+  try {
+    const files = fs.readdirSync(log.LOGS_DIR)
+      .filter((f) => /^app-\d{4}-\d{2}-\d{2}\.log$/.test(f))
+      .sort()
+      .reverse();
+
+    const entries = [];
+    for (const f of files) {
+      const lines = fs.readFileSync(path.join(log.LOGS_DIR, f), 'utf8').split('\n');
+      for (let i = lines.length - 1; i >= 0 && entries.length < limit; i--) {
+        if (!lines[i]) continue;
+        try {
+          const e = JSON.parse(lines[i]);
+          entries.push({ time: e.time, level: e.level, msg: e.msg, detail: summarizeLogEntry(e) });
+        } catch {
+          entries.push({ time: null, level: 'info', msg: lines[i], detail: '' });
+        }
+      }
+      if (entries.length >= limit) break;
+    }
+    res.json({ entries, truncated: entries.length >= limit });
+  } catch (err) {
+    sendServerError(req, res, err, 'reading logs failed');
+  }
+});
+
+// Errors reported by the browser (uncaught exceptions, failed renders, etc.)
+const CLIENT_LEVELS = new Set(['info', 'warn', 'error']);
+app.post('/api/client-log', (req, res) => {
+  const { level, msg, context } = req.body || {};
+  const lvl = CLIENT_LEVELS.has(level) ? level : 'error';
+  req.log[lvl](`client: ${String(msg || 'no message').slice(0, 500)}`, {
+    source: 'frontend',
+    userAgent: req.get('user-agent'),
+    context: JSON.stringify(context ?? null).slice(0, 5000),
+  });
+  res.status(204).end();
+});
+
+// Anything thrown synchronously from a route, or a malformed JSON body
+app.use((err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  const logFn = status >= 500 ? req.log.error : req.log.warn;
+  logFn('express error', { method: req.method, path: req.originalUrl, status, err });
+  if (res.headersSent) return next(err);
+  res.status(status).json({ error: err.message });
+});
+
+process.on('unhandledRejection', (reason) => {
+  log.error('unhandled promise rejection', { err: reason });
+});
+process.on('uncaughtException', (err) => {
+  log.error('uncaught exception, exiting', { err });
+  // Give the log stream a moment to flush before the container restarts us
+  setTimeout(() => process.exit(1), 200);
+});
+
+function tail(text, lines = 30) {
+  return (text || '').toString().trim().split('\n').slice(-lines).join('\n');
+}
+
+async function logStartupDiagnostics() {
+  const dirs = { CLIPS_DIR, MUSIC_DIR, THUMBNAILS_DIR, EXPORTS_DIR, PROJECTS_DIR, LOGS_DIR: log.LOGS_DIR };
+  const dirStatus = {};
+  for (const [name, dir] of Object.entries(dirs)) {
+    try {
+      fs.accessSync(dir, fs.constants.R_OK | fs.constants.W_OK);
+      dirStatus[name] = { path: dir, ok: true, entries: fs.readdirSync(dir).length };
+    } catch (e) {
+      dirStatus[name] = { path: dir, ok: false, error: e.code || e.message };
+    }
+  }
+
+  let ffmpegVersion = null;
+  try {
+    const { stdout } = await execFileAsync('ffmpeg', ['-version']);
+    ffmpegVersion = stdout.split('\n')[0];
+  } catch (e) {
+    log.error('ffmpeg not available, exports and thumbnails will fail', { err: e });
+  }
+
+  log.info('backend started', {
+    port: PORT,
+    node: process.version,
+    ffmpeg: ffmpegVersion,
+    logLevel: log.LOG_LEVEL_NAME,
+    logRetentionDays: log.RETENTION_DAYS,
+    dirs: dirStatus,
+  });
+  for (const [name, s] of Object.entries(dirStatus)) {
+    if (!s.ok) log.warn('directory not accessible', { name, ...s });
+  }
+}
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend running on port ${PORT}`);
-  console.log(`  Clips:      ${CLIPS_DIR}`);
-  console.log(`  Music:      ${MUSIC_DIR}`);
-  console.log(`  Thumbnails: ${THUMBNAILS_DIR}`);
-  console.log(`  Exports:    ${EXPORTS_DIR}`);
+  logStartupDiagnostics();
 });

@@ -126,6 +126,16 @@ export default function Toolbar() {
             ))}
           </select>
         </div>
+
+        <span className="toolbar-spacer" />
+
+        <button
+          className="toolbar-project-btn"
+          onClick={() => { window.location.hash = '#/logs' }}
+          title="View application logs"
+        >
+          Logs
+        </button>
       </div>
 
       {showProjects && <ProjectManager onClose={() => setShowProjects(false)} />}

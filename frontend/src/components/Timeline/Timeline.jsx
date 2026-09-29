@@ -1,6 +1,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import useStore from '../../store/useStore'
 import './Timeline.css'
+import reportError from '../../utils/reportError'
 
 const TRACK_HEIGHT = 64
 const RULER_HEIGHT = 28
@@ -350,10 +351,18 @@ export default function Timeline() {
 
   useEffect(() => () => cancelAnimationFrame(animRef.current), [])
 
+  // Leaving for the Logs page shouldn't leave the timeline playing unseen
+  const view = useStore((s) => s.view)
+  useEffect(() => {
+    if (view !== 'app' && useStore.getState().isPlaying) stopPlayback()
+  }, [view])
+
   // Cmd/Ctrl+Z undo, Shift+Cmd/Ctrl+Z or Ctrl+Y redo, unless focus is in a form field
   useEffect(() => {
     const onKeyDown = (e) => {
       if (!(e.metaKey || e.ctrlKey)) return
+      // The editor stays mounted but hidden on the Logs page
+      if (useStore.getState().view !== 'app') return
       const k = e.key.toLowerCase()
       if (k !== 'z' && k !== 'y') return
       const t = e.target
@@ -450,6 +459,7 @@ export default function Timeline() {
         if (job.status === 'error') throw new Error(job.error || 'unknown error')
       }
     } catch (err) {
+      reportError('render failed', { error: err.message, quality: exportQuality, clips: state.timelineClips.length })
       alert('Export error: ' + err.message)
     }
     setExporting(false)

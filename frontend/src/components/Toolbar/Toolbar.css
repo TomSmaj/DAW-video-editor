@@ -51,6 +51,8 @@
   color: #a0c4ff;
 }
 
+.toolbar-spacer { flex: 1; }
+
 .toolbar-sep {
   width: 1px;
   height: 20px;

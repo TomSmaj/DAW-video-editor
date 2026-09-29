@@ -38,6 +38,9 @@ const useStore = create((set, get) => ({
   // Timeline beat where the music file's t=0 sits; negative skips into the file
   musicOffsetBeats: 0,
 
+  // Which page is showing: 'app' (the editor) or 'logs'
+  view: 'app',
+
   // Playback
   isPlaying: false,
   currentTime: 0,
@@ -165,6 +168,8 @@ const useStore = create((set, get) => ({
       selectedClipIds: selectedClipIds.filter((id) => liveIds.has(id)),
     })
   },
+
+  setView: (view) => set({ view }),
 
   // Playback
   setIsPlaying: (v) => set({ isPlaying: v }),

@@ -12,12 +12,16 @@ services:
       #- ./media/exports:/media/exports
       - ${EXPORT_DIR:-./media/exports}:/media/exports
       - ${PROJECTS_DIR:-./media/projects}:/media/projects
+      - ${LOGS_DIR:-./logs}:/logs
     environment:
       - CLIPS_DIR=/media/clips
       - MUSIC_DIR=/media/music
       - THUMBNAILS_DIR=/media/thumbnails
       - EXPORTS_DIR=/media/exports
       - PROJECTS_DIR=/media/projects
+      - LOGS_DIR=/logs
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-14}
     restart: unless-stopped
 
   frontend:

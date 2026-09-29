@@ -73,6 +73,30 @@ To make the export run the song's full length, extend or add a clip out to where
 
 Gaps between clips are preserved as black frames, so a clip at beat 0 followed by another at beat 32 exports with 32 beats of black between them. Clips that overlap are not layered — they play one after another.
 
+## Logs
+
+The backend writes one log file per day to `logs/app-YYYY-MM-DD.log` (also echoed to `docker compose logs backend`). Each line is a JSON object, so they can be filtered with `grep` or `jq`:
+
+```bash
+jq 'select(.level == "error")' logs/app-*.log          # all errors
+grep '"jobId":"<id>"' logs/app-*.log                   # everything for one render
+```
+
+What gets logged:
+- **Startup** — node/ffmpeg versions, log settings, and whether each media directory is readable/writable
+- **Requests** — method, path, status, and duration, tagged with a `reqId` (also returned in the `X-Request-Id` response header)
+- **Renders** — settings, timeline plan, output size and duration; on failure, the failing segment, the ffmpeg command and its stderr, and the full clip list for reproducing it
+- **Media problems** — clips that fail to probe or thumbnail, unreadable project files, missing music
+- **Browser errors** — uncaught frontend exceptions and failed renders, reported via `/api/client-log`
+
+Configure in `.env`:
+
+| Variable | Default | Description |
+|---|---|---|
+| `LOGS_DIR` | `./logs` | Host directory for log files |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error`. `debug` adds per-segment render timings, ffmpeg command lines, and media/poll requests |
+| `LOG_RETENTION_DAYS` | `14` | Older daily files are deleted automatically |
+
 ## Development (without Docker)
 
 ```bash

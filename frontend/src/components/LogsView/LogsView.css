@@ -1,0 +1,90 @@
+.logs-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #181818;
+  color: #ccc;
+}
+
+.logs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  height: 40px;
+  background: #222;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.logs-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5b8dee;
+  letter-spacing: 0.08em;
+}
+
+.logs-count {
+  font-size: 11px;
+  color: #777;
+}
+
+.logs-spacer { flex: 1; }
+
+.logs-btn {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  color: #bbb;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.logs-btn:hover { border-color: #5b8dee; color: #ddd; }
+.logs-btn:disabled { opacity: 0.5; cursor: default; }
+
+.logs-error {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #f08080;
+  background: #2a1a1a;
+  border-bottom: 1px solid #4a2a2a;
+}
+
+.logs-list {
+  flex: 1;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.logs-empty {
+  padding: 16px 12px;
+  color: #777;
+}
+
+.logs-row {
+  display: flex;
+  gap: 16px;
+  padding: 3px 12px;
+  border-bottom: 1px solid #202020;
+}
+
+.logs-row:hover { background: #1f1f1f; }
+
+.logs-time {
+  flex-shrink: 0;
+  color: #777;
+  white-space: nowrap;
+}
+
+.logs-msg {
+  word-break: break-word;
+}
+
+.logs-detail { color: #888; }
+
+.logs-debug .logs-msg { color: #888; }
+.logs-warn .logs-msg { color: #e0c070; }
+.logs-error .logs-msg { color: #f08080; }
