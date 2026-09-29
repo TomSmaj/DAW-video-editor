@@ -42,7 +42,7 @@ Open **http://localhost:3000** in your browser.
 │   timeline)  │   drag trim window   │   at current      │
 │              │   to set in/out pts) │   position)       │
 ├──────────────┴──────────────────────┴───────────────────┤
-│  ▶ ⏹  0:00.00 | Beat 0.00                    ⬇ Export  │
+│  ▶ ⏹  0:00.00 | Beat 0.00                    ⬇ Render  │
 │  ┌─────────────────────────────────────────────────────┐ │
 │  │  BPM grid timeline — drag clips here               │ │
 │  │  [clip block][  clip block  ]  [clip]              │ │
@@ -60,7 +60,18 @@ Open **http://localhost:3000** in your browser.
 5. **Resize clips** — drag the left/right edges to align with beats
 6. **Trim clip content** — select a clip in the timeline, then drag the blue trim window in the Clip Preview panel to choose which portion of the source clip plays (without moving the clip's position in the timeline)
 7. **Select music** — pick a music file from the toolbar dropdown
-8. **Export** — click ⬇ Export to render the final video with the music mixed in
+8. **Render** — click ⬇ Render to produce the final video with the music mixed in. A progress bar and an estimated time remaining appear while it works.
+
+## Export length
+
+The exported video ends when either the video or the music runs out, whichever comes first:
+
+- **Song longer than your clips** — the export stops at the end of your last clip, and the remainder of the song is cut off
+- **Clips running past the end of the song** — the trailing footage is dropped
+
+To make the export run the song's full length, extend or add a clip out to where the song ends. With no music selected, the export is simply as long as your timeline.
+
+Gaps between clips are preserved as black frames, so a clip at beat 0 followed by another at beat 32 exports with 32 beats of black between them. Clips that overlap are not layered — they play one after another.
 
 ## Development (without Docker)
 

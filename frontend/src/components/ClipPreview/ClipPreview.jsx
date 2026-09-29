@@ -4,7 +4,7 @@ import './ClipPreview.css'
 
 export default function ClipPreview() {
   const {
-    timelineClips, selectedClipId,
+    timelineClips, selectedClipIds,
     updateTimelineClip,
     bpm, beatsToSeconds,
   } = useStore()
@@ -16,7 +16,10 @@ export default function ClipPreview() {
   const dragStartTrimStart = useRef(0)
   const [, forceUpdate] = useState(0)
 
-  const clip = timelineClips.find((c) => c.id === selectedClipId) ?? null
+  // Trimming targets one clip; a multi-selection has no single subject
+  const clip = selectedClipIds.length === 1
+    ? (timelineClips.find((c) => c.id === selectedClipIds[0]) ?? null)
+    : null
 
   // Load video when selected clip changes
   useEffect(() => {

@@ -27,10 +27,16 @@ const useStore = create((set, get) => ({
 
   // Timeline clips
   timelineClips: [],
-  selectedClipId: null,
+  selectedClipIds: [],
+
+  // User-set timeline length in beats; null means size automatically to the clips
+  timelineBeats: null,
 
   // Music
   selectedMusicFile: null,
+
+  // Timeline beat where the music file's t=0 sits; negative skips into the file
+  musicOffsetBeats: 0,
 
   // Playback
   isPlaying: false,
@@ -46,6 +52,7 @@ const useStore = create((set, get) => ({
   setSnapToGrid: (snap) => set({ snapToGrid: snap }),
   setZoom: (zoom) => set({ zoom, pixelsPerBeat: BASE_PIXELS_PER_BEAT * zoom }),
   setSelectedMusicFile: (file) => set({ selectedMusicFile: file }),
+  setMusicOffsetBeats: (beats) => set({ musicOffsetBeats: beats }),
 
   // Helpers
   beatsToSeconds: (beats) => beats * (60 / get().bpm),
@@ -80,7 +87,7 @@ const useStore = create((set, get) => ({
       trimStart: 0,
       track,
     }
-    set((state) => ({ timelineClips: [...state.timelineClips, clip], selectedClipId: clip.id }))
+    set((state) => ({ timelineClips: [...state.timelineClips, clip], selectedClipIds: [clip.id] }))
     return clip
   },
 
@@ -93,11 +100,14 @@ const useStore = create((set, get) => ({
   removeTimelineClip: (id) => {
     set((state) => ({
       timelineClips: state.timelineClips.filter((c) => c.id !== id),
-      selectedClipId: state.selectedClipId === id ? null : state.selectedClipId,
+      selectedClipIds: state.selectedClipIds.filter((s) => s !== id),
     }))
   },
 
-  selectClip: (id) => set({ selectedClipId: id }),
+  selectClip: (id) => set({ selectedClipIds: id ? [id] : [] }),
+  setSelectedClipIds: (ids) => set({ selectedClipIds: ids }),
+
+  setTimelineBeats: (beats) => set({ timelineBeats: beats }),
 
   // Playback
   setIsPlaying: (v) => set({ isPlaying: v }),
@@ -118,6 +128,8 @@ const useStore = create((set, get) => ({
       snapToGrid: s.snapToGrid,
       zoom: s.zoom,
       selectedMusicFile: s.selectedMusicFile,
+      musicOffsetBeats: s.musicOffsetBeats,
+      timelineBeats: s.timelineBeats,
       timelineClips: s.timelineClips,
     }
   },
@@ -131,8 +143,10 @@ const useStore = create((set, get) => ({
       zoom: state.zoom ?? 1,
       pixelsPerBeat: BASE_PIXELS_PER_BEAT * (state.zoom ?? 1),
       selectedMusicFile: state.selectedMusicFile ?? null,
+      musicOffsetBeats: state.musicOffsetBeats ?? 0,
+      timelineBeats: state.timelineBeats ?? null,
       timelineClips: state.timelineClips ?? [],
-      selectedClipId: null,
+      selectedClipIds: [],
       currentTime: 0,
       isPlaying: false,
     })

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   backend:
@@ -9,7 +9,8 @@ services:
       - ${CLIPS_DIR:-./media/clips}:/media/clips
       - ${MUSIC_DIR:-./media/music}:/media/music
       - ./media/thumbnails:/media/thumbnails
-      - ./media/exports:/media/exports
+      #- ./media/exports:/media/exports
+      - ${EXPORT_DIR:-./media/exports}:/media/exports
       - ${PROJECTS_DIR:-./media/projects}:/media/projects
     environment:
       - CLIPS_DIR=/media/clips

@@ -49,6 +49,46 @@
 
 .tl-spacer { flex: 1; }
 
+/* Export progress */
+.tl-export-progress {
+  position: relative;
+  width: 150px;
+  height: 16px;
+  background: #1a1a1a;
+  border: 1px solid #2e5a28;
+  border-radius: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.tl-export-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #2e5a28 0%, #4a8f3e 100%);
+  transition: width 0.3s ease;
+}
+
+.tl-export-eta {
+  font-size: 10px;
+  font-family: monospace;
+  color: #7aa870;
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.tl-export-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-family: monospace;
+  color: #cfe8c8;
+  text-shadow: 0 0 3px rgba(0,0,0,0.8);
+  user-select: none;
+}
+
 /* Scrollable container */
 .tl-scroll {
   flex: 1;
@@ -162,6 +202,12 @@
   box-shadow: 0 0 0 1px #5b8dee, inset 0 0 0 1px rgba(91,141,238,0.2);
 }
 
+/* Drag held back by a collision in the destination row */
+.tl-clip-blocked {
+  border-color: #cc4444 !important;
+  box-shadow: 0 0 0 1px #cc4444, inset 0 0 12px rgba(204, 68, 68, 0.3) !important;
+}
+
 .tl-clip-thumb {
   position: absolute;
   inset: 0;
@@ -233,6 +279,44 @@
 
 .tl-clip-del:hover { opacity: 1; background: #cc3333; }
 
+/* Timeline end / length handle */
+.tl-end-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 55;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(122, 180, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  border-left: 1px solid rgba(122, 180, 255, 0.5);
+}
+
+.tl-end-handle:hover,
+.tl-end-handle-active {
+  background: linear-gradient(
+    90deg,
+    rgba(122, 180, 255, 0.15) 0%,
+    rgba(122, 180, 255, 0.8) 50%,
+    rgba(122, 180, 255, 0.15) 100%
+  );
+  border-left-color: #7ab4ff;
+}
+
+/* Marquee selection box */
+.tl-marquee {
+  position: absolute;
+  background: rgba(91, 141, 238, 0.14);
+  border: 1px solid #5b8dee;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 45;
+}
+
 /* Drop ghost */
 .tl-drop-ghost {
   position: absolute;
@@ -268,6 +352,20 @@
 .tl-waveform-canvas {
   display: block;
   image-rendering: pixelated;
+  cursor: grab;
+}
+
+.tl-waveform-canvas.tl-waveform-dragging { cursor: grabbing; }
+
+.tl-waveform-offset {
+  position: absolute;
+  top: 3px;
+  right: 8px;
+  font-size: 9px;
+  color: #4a6a88;
+  pointer-events: none;
+  user-select: none;
+  font-family: monospace;
 }
 
 .tl-waveform-loading {
