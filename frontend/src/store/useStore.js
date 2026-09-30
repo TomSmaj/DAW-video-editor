@@ -16,6 +16,10 @@ const useStore = create((set, get) => ({
   libraryClips: [],
   musicFiles: [],
 
+  // Filenames of library clips the user has filed into the "In Use" folder. Purely
+  // organisational: the files on disk are untouched. Saved with the project.
+  inUseClipFilenames: [],
+
   // Project settings
   bpm: 120,
   beatDivision: 'quarter',
@@ -48,6 +52,18 @@ const useStore = create((set, get) => ({
   // Actions — library
   setLibraryClips: (clips) => set({ libraryClips: clips }),
   setMusicFiles: (files) => set({ musicFiles: files }),
+
+  moveClipToInUse: (filename) => {
+    if (get().inUseClipFilenames.includes(filename)) return
+    get().pushHistory()
+    set((state) => ({ inUseClipFilenames: [...state.inUseClipFilenames, filename] }))
+  },
+
+  moveClipFromInUse: (filename) => {
+    if (!get().inUseClipFilenames.includes(filename)) return
+    get().pushHistory()
+    set((state) => ({ inUseClipFilenames: state.inUseClipFilenames.filter((f) => f !== filename) }))
+  },
 
   // Actions — project settings
   setBpm: (bpm) => set({ bpm: Math.max(20, Math.min(300, bpm)) }),
@@ -129,6 +145,7 @@ const useStore = create((set, get) => ({
       timelineBeats: s.timelineBeats,
       selectedMusicFile: s.selectedMusicFile,
       bpm: s.bpm,
+      inUseClipFilenames: s.inUseClipFilenames,
     }
   },
 
@@ -193,6 +210,7 @@ const useStore = create((set, get) => ({
       musicOffsetBeats: s.musicOffsetBeats,
       timelineBeats: s.timelineBeats,
       timelineClips: s.timelineClips,
+      inUseClipFilenames: s.inUseClipFilenames,
     }
   },
 
@@ -211,6 +229,7 @@ const useStore = create((set, get) => ({
       history: [],
       future: [],
       timelineClips: state.timelineClips ?? [],
+      inUseClipFilenames: state.inUseClipFilenames ?? [],
       selectedClipIds: [],
       currentTime: 0,
       isPlaying: false,
