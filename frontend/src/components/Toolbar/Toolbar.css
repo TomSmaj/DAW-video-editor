@@ -137,3 +137,44 @@
   color: #666;
   min-width: 28px;
 }
+
+/* BPM helpers: ÷2 ×2 Tap Detect */
+.toolbar-mini-btn {
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  color: #aaa;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toolbar-mini-btn:hover:not(:disabled) { border-color: #5b8dee; color: #ddd; }
+.toolbar-mini-btn:disabled { opacity: 0.45; cursor: default; }
+.toolbar-mini-btn.tapping { border-color: #5b8dee; color: #a0c4ff; }
+
+.toolbar-mini-btn.apply {
+  background: #1e3a1a;
+  border-color: #2e5a28;
+  color: #80d870;
+}
+
+.toolbar-mini-btn.apply:hover { background: #254a20; border-color: #4a8f3e; }
+
+.bpm-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #a0c4ff;
+  white-space: nowrap;
+  padding-left: 2px;
+}
+
+.bpm-detect-error {
+  font-size: 11px;
+  color: #e0a070;
+  white-space: nowrap;
+}

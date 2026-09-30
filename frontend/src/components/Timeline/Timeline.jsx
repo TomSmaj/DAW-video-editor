@@ -2,6 +2,7 @@ import { useRef, useCallback, useEffect, useState } from 'react'
 import useStore from '../../store/useStore'
 import './Timeline.css'
 import reportError from '../../utils/reportError'
+import { loadMusicBuffer } from '../../utils/musicBuffer'
 
 const TRACK_HEIGHT = 64
 const RULER_HEIGHT = 28
@@ -756,10 +757,7 @@ function WaveformTrack({
 
     let cancelled = false
     setLoading(true)
-    const ac = new (window.AudioContext || window.webkitAudioContext)()
-    fetch(`/music/${encodeURIComponent(musicFile)}`)
-      .then((r) => r.arrayBuffer())
-      .then((buf) => ac.decodeAudioData(buf))
+    loadMusicBuffer(musicFile)
       .then((audioBuffer) => {
         if (cancelled) return
         audioBufferRef.current = audioBuffer
@@ -768,7 +766,6 @@ function WaveformTrack({
         draw(audioBuffer, musicOffsetBeats)
       })
       .catch(() => { if (!cancelled) setLoading(false) })
-      .finally(() => ac.close().catch(() => {}))
 
     return () => { cancelled = true }
   }, [musicFile, draw])
